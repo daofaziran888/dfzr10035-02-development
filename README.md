@@ -57,6 +57,7 @@ npm run dev
 | 请求批次 | `request_batch` | 调用批次 | 批次编号、关联端点、参数模板 |
 | 响应解析 | `response_parse` | 解析规则 | 规则编号、目标端点、JSON路径 |
 | Schema差异 | `schema_diff` | 差异记录 | 记录编号、关联端点、变更字段 |
+| 字段投产影响 | `field_impact` | 影响清单 | 清单编号、关联端点、可用列、待核列 |
 | 结果缓存 | `data_cache` | 缓存策略 | 策略编号、目标端点、缓存TTL |
 | 重放队列 | `retry_queue` | 重放任务 | 任务编号、失败端点、失败原因 |
 | 数据投递 | `data_delivery` | 投递管道 | 管道编号、数据来源、目标地址 |
@@ -80,6 +81,23 @@ npm run dev
   `frontend/src/domain/<模块>.ts`，用于承载真实业务差异并维持36题位容量。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 字段投产影响工作流
+
+`field_impact` 模块把端点字段差异与待交付版本关联，供发布前检查；配套工作流接口
+（注册在通用资源路由之前）：
+
+- `GET /api/field-impact/{端点}/view` 影响视图：可用列、待核列、涉及订阅、缺少样本来源、待交付版本
+- `POST /api/field-impact/{端点}/confirm` 提交确认（按确认键幂等，重复提交只生效一次）；
+  待改名主键缺可验证样本时确认不完成，已领用的交付仍按原快照读取
+- `POST /api/field-impact/diffs/{差异}/samples` 登记样本来源
+- `POST /api/field-impact/subscriptions/{订阅}/columns` 订阅申请字段
+- `POST /api/field-impact/deliveries/{任务}/claim|pull` 领用 / 拉取组装交付
+  （每份文件只用一个完整字段版本）
+- `GET /api/field-impact/deliveries/records/{记录}` 交付记录回查字段定义与原始差异
+
+确认完成后数据版本保存已确认的字段范围和关联差异，并同步投递待办。
+场景回归测试：`cd backend && .venv/bin/python -m pytest tests/`。
 
 领域：数据工程
 子方向：数据采集、爬虫与RPA
